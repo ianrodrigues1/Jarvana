@@ -1,4 +1,4 @@
-# LÁZARO // ÓRBITA ZERO
+# JARVANA // O SILENCIO
 
 Uma aventura de ficção interativa em Python 3, sem dependências externas. Ethan Muller acorda na nave de pesquisa **LÁZARO** enquanto a reentrada se aproxima. A presença que divide a nave com ele se chama **Jarvana**: uma entidade alienígena calma, precisa, estranhamente curiosa e impossível de classificar com segurança.
 
