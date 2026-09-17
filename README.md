@@ -95,15 +95,6 @@ transferir jarvana
 escapar
 ```
 
-## Finais
-
-| Final | Condição principal |
-| --- | --- |
-| Dois Sobreviventes | Vínculo 5+, transmissão bloqueada, transferência de Jarvana e fuga. |
-| O Sacrifício | Bloqueie a transmissão e destrua o núcleo xenológico. |
-| A Verdade Apagada | Siga a ordem da Agência e destrua o núcleo. |
-| Protocolo Zero | Vínculo 5+, logs secretos 09/10/12, rastrear e ativar o Protocolo Zero. |
-
 ## Arquitetura técnica
 
 `GameState` concentra HP, oxigênio, energia, casco, reentrada em segundos, vínculo com Jarvana, inventário, logs, áreas, flags de decisão e histórico de falas já exibidas. Cada comando válido avança o relógio simulado, reduz recursos e pode encerrar a partida em caso de falha.
