@@ -23,20 +23,23 @@ VERB_ALIASES = {
     "acreditar": "trust", "ignorar": "ignore", "recusar": "ignore", "rastrear": "track",
     "localizar": "track", "bloquear": "block", "transferir": "transfer", "escapar": "escape",
     "fugir": "escape", "destruir": "destroy", "ejetar": "destroy", "ativar": "activate",
+    "confrontar": "confront", "questionar": "confront", "salvar": "save", "proteger": "save",
+    "preservar": "preserve", "manter": "preserve",
     "status": "status", "estado": "status", "inventario": "inventory", "itens": "inventory",
     "ajuda": "help", "help": "help", "comandos": "help", "sair": "quit", "quit": "quit",
 }
 
 TARGET_ALIASES = {
     "doca de acoplamento": "doca", "acoplamento": "doca", "manutencao": "manutencao",
-    "laboratorio lazaro": "laboratorio", "laboratorio": "laboratorio", "lazaro": "lazaro",
+    "laboratorio xenologico": "laboratorio", "laboratorio": "laboratorio", "jarvana": "jarvana",
     "alojamento": "alojamentos", "alojamentos": "alojamentos", "ponte de comando": "ponte",
-    "ponte": "ponte", "nucleo de lazaro": "nucleo", "nucleo": "nucleo", "terminal": "terminal",
+    "ponte": "ponte", "nucleo xenologico": "nucleo", "nucleo": "nucleo", "terminal": "terminal",
     "painel": "painel", "vazamento": "vazamento", "oxigenio": "oxigenio", "o2": "oxigenio",
     "energia": "energia", "casco": "casco", "kit": "kit", "kit medico": "kit_medico",
     "armario": "armario", "arquivo": "arquivo", "transmissao": "transmissao",
     "sinal": "transmissao", "ordens": "ordens", "protocolo zero": "protocolo_zero",
-    "zero": "protocolo_zero", "lazaro para modulo": "lazaro", "ia": "lazaro",
+    "zero": "protocolo_zero", "jarvana para modulo": "jarvana", "entidade": "jarvana",
+    "tripulante": "tripulante", "pessoa": "tripulante", "imani": "tripulante", "dados": "dados",
 }
 
 

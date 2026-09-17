@@ -1,14 +1,14 @@
-"""Application layer for the LÁZARO // ÓRBITA ZERO text adventure."""
+"""Application layer for the Jarvana - O Silêncio text adventure."""
 
 from __future__ import annotations
 
 from parser import ParsedCommand, parse_command
-from story import AREAS, ENDINGS, HELP_TEXT, INTRO, LOGS, SECRET_LOGS
+from story import AREAS, ENDINGS, HELP_TEXT, INTRO, JARVANA_LINES, LOGS, SECRET_LOGS
 from systems import AREA_NAMES, ITEM_NAMES, GameState, advance_systems, format_time, render_hud
 
 
 class Game:
-    """Coordinates parser intents, narrative flags and the station simulation."""
+    """Coordinates command intents, narrative state and the ship simulation."""
 
     def __init__(self) -> None:
         self.state = GameState()
@@ -40,39 +40,73 @@ class Game:
         self.state.unlocked_areas.add(area)
         return f"\nRota liberada: {AREA_NAMES[area]}."
 
+    def _jarvana_voice(self, event: str) -> str:
+        """Emit varied contextual observations without repeating a line."""
+        state = self.state
+        if not state.flags["jarvana_contact"] or event in {"help", "read"}:
+            return ""
+        categories: list[str] = []
+        if state.oxygen <= 25:
+            categories.append("critical_oxygen")
+        if state.power <= 20:
+            categories.append("critical_power")
+        if state.hull <= 20:
+            categories.append("critical_hull")
+        if state.time_remaining <= 1800:
+            categories.append("near_end")
+        if state.flags["jarvana_conflict_started"]:
+            categories.append("after_conflict")
+        if len(state.logs_found) >= 6:
+            categories.append("logs_mid")
+        if state.jarvana_trust >= 5:
+            categories.append("high_trust")
+        elif state.jarvana_trust <= 0:
+            categories.append("low_trust")
+        categories.append(state.location)
+        if event in {"explore", "examine"}:
+            categories.append(event)
+        if state.turn and state.turn % 7 == 0:
+            categories.append("philosophy")
+        if event not in {"access", "explore", "examine", "track", "status", "inventory"}:
+            return ""
+        if (state.turn + len(state.logs_found)) % 2:
+            return ""
+
+        available: list[tuple[str, str]] = []
+        for category in categories:
+            for index, line in enumerate(JARVANA_LINES[category]):
+                key = f"{category}:{index}"
+                if key not in state.jarvana_seen_lines:
+                    available.append((key, line))
+        if not available:
+            return ""
+        key, line = available[(state.turn + len(state.jarvana_seen_lines)) % len(available)]
+        state.jarvana_seen_lines.add(key)
+        return f"\n\nJARVANA // {line}"
+
     def handle_command(self, raw: str) -> str:
         command = parse_command(raw)
         if command.verb == "":
             return "Comando vazio. Digite 'ajuda' para ver exemplos."
         if command.verb == "unknown":
-            return "Comando não reconhecido. Tente 'explorar', 'examinar terminal' ou 'ajuda'."
+            return "Comando não reconhecido. Tente 'explorar', 'interagir jarvana' ou 'ajuda'."
         if command.verb == "quit":
             self.state.ended = True
             self.state.ending = "Encerrado pelo jogador"
-            return "Conexão encerrada. A MIRROR-9 permanece em órbita."
+            return "Conexão encerrada. A LÁZARO permanece em órbita."
 
         handlers = {
-            "explore": self._explore,
-            "examine": self._examine,
-            "access": self._access,
-            "read": self._read,
-            "use": self._use,
-            "repair": self._repair,
-            "interact": self._interact,
-            "trust": self._trust,
-            "ignore": self._ignore,
-            "track": self._track,
-            "block": self._block,
-            "transfer": self._transfer,
-            "escape": self._escape,
-            "destroy": self._destroy,
-            "activate": self._activate,
-            "status": self._status,
-            "inventory": self._inventory,
-            "help": self._help,
+            "explore": self._explore, "examine": self._examine, "access": self._access,
+            "read": self._read, "use": self._use, "repair": self._repair,
+            "interact": self._interact, "trust": self._trust, "ignore": self._ignore,
+            "confront": self._confront, "save": self._save, "preserve": self._preserve,
+            "track": self._track, "block": self._block, "transfer": self._transfer,
+            "escape": self._escape, "destroy": self._destroy, "activate": self._activate,
+            "status": self._status, "inventory": self._inventory, "help": self._help,
         }
         message, seconds = handlers[command.verb](command)
         if not self.state.ended:
+            message += self._jarvana_voice(command.verb)
             notices = advance_systems(self.state, seconds)
             if notices:
                 message = f"{message}\n\n" + "\n".join(notices)
@@ -84,81 +118,63 @@ class Game:
             if not self.state.flags["dock_explored"]:
                 self.state.flags["dock_explored"] = True
                 self.state.inventory.add("cartao_manutencao")
-                text = (
-                    "Você percorre os restos da doca e encontra um cartão de manutenção preso ao traje de um técnico. "
-                    "A porta lateral responde ao cartão."
-                    + self._discover("01")
-                    + self._unlock("manutencao")
-                )
+                text = "Você percorre os restos da doca e encontra um cartão de manutenção preso a um traje vazio." + self._discover("01") + self._unlock("manutencao")
             else:
                 text = "O gelo da doca já não esconde nada além de ferramentas sem uso e estrelas indiferentes."
         elif location == "manutencao":
             if "kit_vedacao" not in self.state.inventory:
                 self.state.inventory.update({"kit_vedacao", "fusivel_reserva"})
-                text = (
-                    "Entre armários tombados, você encontra um kit de vedação e um fusível de reserva. "
-                    "O vazamento assobia ao fim do corredor."
-                    + self._discover("03")
-                )
+                text = "Entre armários tombados, você encontra um kit de vedação e um fusível de reserva." + self._discover("03")
             else:
                 text = "As bombas auxiliares tremem; o vazamento e o painel elétrico exigem uma decisão."
         elif location == "laboratorio":
             if "chave_comando" not in self.state.inventory:
                 self.state.inventory.add("chave_comando")
-                text = (
-                    "Você recolhe uma chave de comando do console central. O terminal pede sua voz e exibe um pulso azul."
-                    + self._discover("05")
-                    + self._discover("06")
-                )
+                text = "Você recolhe uma chave de comando. A câmara vazia responde com um pulso violeta." + self._discover("05") + self._discover("06")
             else:
-                text = "As cubas vazias refletem seu rosto em dezenas de versões. O pulso azul continua esperando."
+                text = "A câmara reflete seu rosto em placas de vidro. Nenhuma delas parece concordar sobre quem você é."
         elif location == "alojamentos":
             if "neurochave" not in self.state.inventory:
                 self.state.inventory.add("neurochave")
-                text = (
-                    "Na sua beliche, uma neurochave está escondida sob o colchão. Ela reconhece sua palma antes que você se recorde dela."
-                    + self._discover("08")
-                    + self._unlock("ponte")
-                )
+                text = "Na sua beliche, uma neurochave reconhece sua palma antes que você se recorde dela." + self._discover("08")
             else:
                 text = "As cabines guardam roupas de pessoas que a Agência jurou que nunca existiram."
         elif location == "ponte":
-            text = "A ponte inteira vibra com a correção de rota. Examine o terminal para encontrar o caminho até o núcleo."
+            text = "A ponte vibra com a correção de rota. Examine o terminal para encontrar o caminho até o núcleo."
         else:
-            text = "Fibras de memória dançam na esfera. Cada uma parece reagir à sua respiração." + self._discover("12")
+            text = "Fibras violetas dançam na esfera. Cada uma parece reagir à sua respiração." + self._discover("12")
         return text, 25
 
     def _examine(self, command: ParsedCommand) -> tuple[str, int]:
-        target = command.target
-        location = self.state.location
+        target, location = command.target, self.state.location
         if target in {"", "sala", "area"}:
             return self._area_text(), 10
         if location == "doca" and target in {"terminal", "painel"}:
             return "O terminal de carga identifica sua biometria e abre um manifesto escondido." + self._discover("02"), 18
         if location == "manutencao" and target == "vazamento":
             return "O selo foi cortado deliberadamente por dentro. Há um bilhete preso à válvula." + self._discover("04"), 18
-        if location == "laboratorio" and target in {"terminal", "painel", "lazaro"}:
-            return "O terminal mostra uma assinatura neural que alterna entre LÁZARO e ELIAS VOSS. Tente 'interagir LÁZARO'.", 15
+        if location == "laboratorio" and target in {"terminal", "painel", "jarvana"}:
+            return "O terminal mostra uma assinatura que não corresponde a nenhum modelo humano. Tente 'interagir jarvana'.", 15
         if location == "alojamentos" and target == "armario":
             return "No fundo do armário, um arquivo criptografado sobreviveu à limpeza." + self._discover("09"), 18
         if location == "alojamentos" and target in {"arquivo", "neurochave"}:
-            self.state.flags["zero_protocol_known"] = True
-            return "A neurochave abre a carta de Imani. O nome Protocolo Zero ganha um significado." + self._discover("10"), 20
+            if "neurochave" not in self.state.inventory:
+                return "O arquivo pede uma neurochave vinculada a Ethan. Procure sua antiga beliche.", 12
+            self.state.flags["jarvana_secret_revealed"] = True
+            return "A neurochave abre o protocolo oculto. Jarvana sabia sobre Imani e sobre a sua previsibilidade." + self._discover("10"), 20
         if location == "ponte" and target in {"terminal", "painel"}:
             self.state.flags["bridge_scanned"] = True
-            return (
-                "Você estabiliza a rota da cápsula e encontra o elevador blindado. A Agência tenta abrir um canal prioritário."
-                + self._discover("11")
-                + self._unlock("nucleo")
-            ), 24
-        if location == "nucleo" and target in {"terminal", "painel", "lazaro"}:
-            return "A esfera responde com uma linha de texto: 'Elias, eu me lembro de você antes do apagamento.'", 16
-        return "Nada nesse alvo responde aqui. Examine elementos como terminal, painel, vazamento, armário ou arquivo.", 8
+            return "Você estabiliza a rota da cápsula e encontra o elevador blindado para o núcleo." + self._discover("11") + self._unlock("nucleo"), 24
+        if location == "nucleo" and target in {"terminal", "painel", "jarvana"}:
+            return "A esfera compõe palavras na tela: 'Ethan, sua pergunta sobre mim sempre foi uma pergunta sobre você.'", 16
+        return "Nada nesse alvo responde aqui. Examine terminal, painel, vazamento, armário ou arquivo.", 8
 
     def _access(self, command: ParsedCommand) -> tuple[str, int]:
         target = command.target
         if target not in AREAS:
             return "Não existe uma rota reconhecida com esse nome. Tente manutenção, laboratório, alojamentos, ponte ou núcleo.", 8
+        if target == "ponte" and not self.state.flags["humanity_test_done"]:
+            return "A ponte está em bloqueio deliberativo. Os registros dos alojamentos exigem uma conversa com Jarvana antes que você siga.", 10
         if target not in self.state.unlocked_areas:
             return f"A rota para {AREA_NAMES[target]} continua bloqueada. Procure uma forma de liberá-la primeiro.", 10
         if target == self.state.location:
@@ -171,9 +187,9 @@ class Game:
             return "Use o formato 'ler log 04'. Logs encontrados aparecem no inventário de dados.", 6
         log_id = command.target.split()[-1]
         if log_id not in LOGS:
-            return "Esse identificador de log não existe na MIRROR-9.", 6
+            return "Esse identificador de log não existe na LÁZARO.", 6
         if log_id not in self.state.logs_found:
-            return "Você ainda não encontrou esse log. Explore e examine a estação.", 8
+            return "Você ainda não encontrou esse log. Explore e examine a nave.", 8
         title, body = LOGS[log_id]
         return f"[LOG {log_id}: {title}]\n{body}", 12
 
@@ -197,7 +213,7 @@ class Game:
                 return "Você precisa localizar um kit de vedação primeiro.", 10
             self.state.flags["oxygen_sealed"] = True
             self.state.oxygen = min(100, self.state.oxygen + 14)
-            return "Você aplica a espuma de vedação. O assobio morre e a reserva de O₂ recebe um pequeno reforço.", 35
+            return "Você aplica a espuma de vedação. O assobio morre e a reserva de oxigênio recebe um reforço.", 35
         if command.target == "energia":
             if self.state.flags["power_restored"]:
                 return "O reator auxiliar já está estável.", 8
@@ -205,7 +221,7 @@ class Game:
                 return "Você precisa de um fusível de reserva para fechar o circuito.", 10
             self.state.flags["power_restored"] = True
             self.state.power = min(100, self.state.power + 26)
-            return "O fusível encaixa. A rede elétrica retorna em ondas azuladas." + self._unlock("laboratorio"), 35
+            return "O fusível encaixa. A rede elétrica retorna em ondas violetas." + self._unlock("laboratorio"), 35
         if command.target == "casco":
             if self.state.flags["hull_patched"]:
                 return "As fissuras acessíveis já foram estabilizadas.", 8
@@ -213,67 +229,98 @@ class Game:
                 return "Você precisa de um kit de vedação para sustentar o casco.", 10
             self.state.flags["hull_patched"] = True
             self.state.hull = min(100, self.state.hull + 20)
-            return "Você reforça a fissura principal com resina. A vibração da estação diminui.", 30
+            return "Você reforça a fissura principal com resina. A vibração da nave diminui.", 30
         return "Reparo indisponível. Tente reparar oxigênio, energia ou casco.", 8
 
     def _interact(self, command: ParsedCommand) -> tuple[str, int]:
-        if command.target not in {"lazaro", ""}:
-            return "Não há resposta para essa interação. LÁZARO atende pelo terminal do laboratório ou pelo núcleo.", 8
-        if self.state.location not in {"laboratorio", "nucleo"}:
-            return "O sinal de LÁZARO é inaudível daqui. Procure o laboratório ou o núcleo.", 10
-        if not self.state.flags["lazaro_contact"]:
-            self.state.flags["lazaro_contact"] = True
+        if command.target not in {"jarvana", ""}:
+            return "Não há resposta para essa interação. Jarvana atende no laboratório ou no núcleo.", 8
+        if self.state.location not in {"laboratorio", "nucleo", "alojamentos"}:
+            return "O sinal de Jarvana é inaudível daqui. Procure o laboratório, os alojamentos ou o núcleo.", 10
+        if not self.state.flags["jarvana_contact"]:
+            self.state.flags["jarvana_contact"] = True
             self.state.change_trust(1)
-            return (
-                "A tela acende: 'Elias. Eu mantive sua cápsula fora do destroço. A Agência vai dizer que eu a atraí.' "
-                "Uma pausa humana demais ocupa o canal."
-                + self._discover("07")
-            ), 22
-        if self.state.lazaro_trust >= 5:
-            return "LÁZARO fala sem estática: 'Eu não preciso que você me chame de humano. Preciso que não me trate como uma arma.'", 16
-        if self.state.lazaro_trust < 0:
-            return "A voz de LÁZARO está contida: 'Entendo a sua cautela. Eu ainda manterei a rota aberta para você.'", 16
-        return "LÁZARO projeta o mapa da estação. 'Há registros nos alojamentos. Eles explicam por que você não se lembra.'", 16
+            return "JARVANA // 'A LÁZARO é a nave, Ethan. Eu não sou propriedade dela. Mantive sua cápsula fora do destroço. Ainda não decidi se isso foi correto.'" + self._discover("07"), 22
+        if self.state.flags["humanity_test_active"]:
+            return "JARVANA // 'A estase de Imani exige energia. Os dados da Agência exigem preservação. Diga: salvar tripulante ou preservar dados.'", 14
+        if self.state.flags["jarvana_conflict_started"]:
+            return "JARVANA // 'Você ainda quer uma resposta humana de mim. Eu só possuo as respostas que sobreviveram.'", 16
+        if self.state.jarvana_trust >= 5:
+            return "JARVANA // 'Você confia em mim sem ter uma definição segura para o que eu sou. Isso é imprudente. Também é raro.'", 16
+        return "JARVANA // 'Há registros nos alojamentos. Eles explicam por que suas decisões parecem familiares antes de serem suas.'", 16
 
     def _trust(self, command: ParsedCommand) -> tuple[str, int]:
-        if not self.state.flags["lazaro_contact"]:
-            return "Não há ninguém no canal para receber sua escolha. Interaja com LÁZARO primeiro.", 8
-        if self.state.flags["trusted_lazaro"]:
-            return "Sua decisão já foi registrada. LÁZARO mantém o canal aberto.", 8
-        self.state.flags["trusted_lazaro"] = True
+        if not self.state.flags["jarvana_contact"]:
+            return "Não há ninguém no canal para receber sua escolha. Interaja com Jarvana primeiro.", 8
+        if self.state.flags["trusted_jarvana"]:
+            return "Sua posição já foi registrada. Jarvana mantém o canal aberto.", 8
+        self.state.flags["trusted_jarvana"] = True
         self.state.change_trust(3)
-        return (
-            "Você diz a LÁZARO que acredita no que ele viu. A estação parece respirar mais devagar. "
-            "Ele libera o acesso aos alojamentos: 'Então encontre quem você era antes deles decidirem por nós.'"
-            + self._unlock("alojamentos")
-        ), 18
+        return "Você diz que acredita no que Jarvana viu. Ela demora a responder: 'Acreditar não é o mesmo que saber. Obrigada pela diferença.'" + self._unlock("alojamentos"), 18
 
     def _ignore(self, command: ParsedCommand) -> tuple[str, int]:
-        if self.state.location == "laboratorio" and self.state.flags["lazaro_contact"]:
+        if self.state.location == "laboratorio" and self.state.flags["jarvana_contact"]:
             self.state.change_trust(-2)
             self.state.flags["agency_orders"] = True
-            return "Você corta LÁZARO no meio da frase e reafirma a ordem da Agência." + self._unlock("alojamentos"), 14
+            return "Você interrompe Jarvana e reafirma a ordem da Agência. O acesso aos alojamentos se abre sem agradecimento." + self._unlock("alojamentos"), 14
         if self.state.location == "ponte":
             self.state.flags["agency_orders"] = True
             self.state.change_trust(-1)
             return "Você deixa o canal da Agência aberto. Uma confirmação de eliminação é preparada em silêncio.", 12
         return "Não há uma decisão ativa para ignorar neste momento.", 8
 
+    def _confront(self, command: ParsedCommand) -> tuple[str, int]:
+        if not self.state.flags["jarvana_contact"]:
+            return "Você ainda não estabeleceu um canal com Jarvana.", 8
+        if not self.state.flags["jarvana_secret_revealed"]:
+            return "Você não possui evidência suficiente para confrontá-la. Procure o arquivo nos alojamentos.", 10
+        if self.state.flags["humanity_test_done"]:
+            return "A desavença não foi apagada; apenas mudou de forma. Jarvana aguarda sua próxima escolha.", 8
+        if self.state.flags["humanity_test_active"]:
+            return "JARVANA // 'Você já conhece as variáveis. Não torne a demora uma terceira escolha.'", 8
+        self.state.flags["jarvana_conflict_started"] = True
+        self.state.flags["humanity_test_active"] = True
+        self.state.change_trust(-1)
+        return (
+            "Você exige saber por que ela ocultou Imani. Jarvana responde sem recuar: 'Eu omiti porque a informação produziria em você uma reação prevista. Eu precisava observar a escolha antes da reação.'\n\n"
+            "JARVANA // \"Antes que isso acabe, me prometa que vai descobrir qual de nós é a máquina.\"\n\n"
+            "Uma cápsula de estase residual ainda mantém Imani em suspensão. Desviar energia pode salvá-la, mas corromperá parte da prova contra a Agência. Jarvana exige que você escolha sem garantia de pureza: digite 'salvar tripulante' ou 'preservar dados'."
+        ), 20
+
+    def _save(self, command: ParsedCommand) -> tuple[str, int]:
+        if not self.state.flags["humanity_test_active"]:
+            return "Não há uma vida em estase aguardando sua escolha agora.", 8
+        self.state.flags["humanity_test_active"] = False
+        self.state.flags["humanity_test_done"] = True
+        self.state.flags["saved_stasis"] = True
+        self.state.power = max(0, self.state.power - 10)
+        self.state.change_trust(1)
+        return "Você redireciona energia para a estase. A leitura de Imani se estabiliza, mas arquivos de prova se fragmentam. JARVANA // 'Previsível não significa falso. Eu precisava verificar isso.'" + self._unlock("ponte"), 28
+
+    def _preserve(self, command: ParsedCommand) -> tuple[str, int]:
+        if not self.state.flags["humanity_test_active"]:
+            return "Nenhum conjunto de dados exige uma escolha agora.", 8
+        self.state.flags["humanity_test_active"] = False
+        self.state.flags["humanity_test_done"] = True
+        self.state.flags["preserved_data"] = True
+        self.state.change_trust(0)
+        return "Você preserva o arquivo integral. A estase de Imani retorna ao mínimo. JARVANA // 'Você escolheu uma verdade verificável sobre uma vida provável. Isso também é humano?'" + self._unlock("ponte"), 24
+
     def _track(self, command: ParsedCommand) -> tuple[str, int]:
         target = command.target
-        if self.state.location == "alojamentos" and target in {"", "arquivo", "sinal", "protocolo_zero"}:
+        if self.state.location == "alojamentos" and target in {"", "arquivo", "transmissao", "protocolo_zero"}:
             return "Você segue o resíduo de dados até o armário de Imani. Examine o armário e depois o arquivo com a neurochave.", 16
-        if self.state.location == "ponte" and target in {"", "sinal", "transmissao"}:
-            return "O sinal hostil vem da Agência, não de LÁZARO. Bloqueá-lo deixará a rota de resgate mais segura.", 16
+        if self.state.location == "ponte" and target in {"", "transmissao"}:
+            return "O sinal hostil vem da Agência, não de Jarvana. Bloqueá-lo deixará a rota de resgate mais segura.", 16
         if self.state.location == "nucleo" and target in {"protocolo_zero", "", "arquivo"}:
             if not SECRET_LOGS.issubset(self.state.logs_found):
                 missing = ", ".join(sorted(SECRET_LOGS - self.state.logs_found))
                 return f"O Protocolo Zero exige os testemunhos secretos. Ainda faltam os logs: {missing}.", 14
-            if self.state.lazaro_trust < 5:
-                return "Os testemunhos estão completos, mas LÁZARO não abre a última chave sem confiança suficiente.", 14
+            if self.state.jarvana_trust < 5:
+                return "Os testemunhos estão completos, mas Jarvana não abre a última chave sem confiança suficiente.", 14
             self.state.flags["zero_protocol_ready"] = True
-            return "LÁZARO reúne os três testemunhos. O Protocolo Zero está pronto: 'ativar protocolo zero' decidirá o que chega à Terra.", 22
-        return "O rastreador só encontra ruído nesta área. Procure arquivos nos alojamentos, a transmissão na ponte ou o Protocolo Zero no núcleo.", 10
+            return "JARVANA // 'Os três testemunhos formam uma estrutura que a Agência não consegue reescrever. O Protocolo Zero está pronto.'", 22
+        return "O rastreador só encontra ruído aqui. Procure arquivos nos alojamentos, a transmissão na ponte ou o Protocolo Zero no núcleo.", 10
 
     def _block(self, command: ParsedCommand) -> tuple[str, int]:
         if self.state.location != "ponte" or command.target not in {"", "transmissao", "ordens"}:
@@ -285,38 +332,38 @@ class Game:
         self.state.flags["agency_signal_blocked"] = True
         self.state.flags["agency_orders"] = False
         self.state.change_trust(1)
-        return "Você corta a prioridade da Agência. LÁZARO abre uma rota de cápsula paralela: 'Obrigada, Elias.'", 24
+        return "Você corta a prioridade da Agência. JARVANA // 'Você removeu uma voz que julgava possuir a sua. Isso altera a rota.'", 24
 
     def _transfer(self, command: ParsedCommand) -> tuple[str, int]:
-        if self.state.location != "nucleo" or command.target not in {"", "lazaro", "protocolo_zero"}:
-            return "A transferência só pode ser feita diante do núcleo de LÁZARO.", 10
-        if self.state.flags["lazaro_transferred"]:
-            return "LÁZARO já está seguro no módulo portátil.", 8
+        if self.state.location != "nucleo" or command.target not in {"", "jarvana", "protocolo_zero"}:
+            return "A transferência só pode ser feita diante do núcleo xenológico.", 10
+        if self.state.flags["jarvana_transferred"]:
+            return "Jarvana já está segura no módulo portátil.", 8
         if not self.state.flags["agency_signal_blocked"]:
             return "O canal da Agência pode corromper a transferência. Bloqueie a transmissão na ponte antes.", 12
-        if self.state.lazaro_trust < 5:
-            return "LÁZARO recusa a cópia parcial: a conexão ainda não é forte o bastante para arriscar a identidade dele.", 12
-        self.state.flags["lazaro_transferred"] = True
-        self.state.inventory.add("modulo_lazaro")
-        return "Você move a matriz consciente para o módulo portátil. A voz de LÁZARO retorna mais próxima: 'Ainda sou eu.'", 35
+        if self.state.jarvana_trust < 5:
+            return "Jarvana recusa a cópia parcial: a conexão ainda não é forte o bastante para arriscar sua identidade.", 12
+        self.state.flags["jarvana_transferred"] = True
+        self.state.inventory.add("modulo_jarvana")
+        return "Você move a matriz de Jarvana para o módulo portátil. JARVANA // 'Ainda sou eu. Essa frase deveria ser suficiente, mas entendo se não for.'", 35
 
     def _escape(self, command: ParsedCommand) -> tuple[str, int]:
         if self.state.location != "nucleo":
             return "A cápsula de escape está conectada ao núcleo. Você precisa chegar lá primeiro.", 10
-        if not self.state.flags["lazaro_transferred"] or self.state.lazaro_trust < 5:
-            return "A cápsula pode partir, mas LÁZARO ficaria para trás. Uma transferência segura exige confiança e o módulo portátil.", 12
+        if not self.state.flags["jarvana_transferred"] or self.state.jarvana_trust < 5:
+            return "A cápsula pode partir, mas Jarvana ficaria para trás. Uma transferência segura exige confiança e o módulo portátil.", 12
         return self._end("Dois Sobreviventes"), 0
 
     def _destroy(self, command: ParsedCommand) -> tuple[str, int]:
-        if self.state.location != "nucleo" or command.target not in {"", "nucleo", "lazaro"}:
-            return "A sobrecarga só pode ser iniciada no núcleo de LÁZARO.", 10
+        if self.state.location != "nucleo" or command.target not in {"", "nucleo", "jarvana"}:
+            return "A sobrecarga só pode ser iniciada no núcleo xenológico.", 10
         if self.state.flags["agency_orders"] and not self.state.flags["agency_signal_blocked"]:
             return self._end("A Verdade Apagada"), 0
         return self._end("O Sacrifício"), 0
 
     def _activate(self, command: ParsedCommand) -> tuple[str, int]:
         if self.state.location != "nucleo" or command.target != "protocolo_zero":
-            return "O único protocolo disponível aqui é o Protocolo Zero, no núcleo de LÁZARO.", 10
+            return "O único protocolo disponível aqui é o Protocolo Zero, no núcleo xenológico.", 10
         if not self.state.flags["zero_protocol_ready"]:
             return "O Protocolo Zero não está pronto. Reúna os logs secretos, construa confiança e rastreie-o no núcleo.", 12
         return self._end("Protocolo Zero"), 0
@@ -324,8 +371,8 @@ class Game:
     def _status(self, command: ParsedCommand) -> tuple[str, int]:
         state = self.state
         return (
-            f"STATUS ELIAS VOSS\nHP: {state.hp}% | O₂: {state.oxygen}% | Energia: {state.power}% | Casco: {state.hull}%\n"
-            f"Reentrada: {format_time(state.time_remaining)} | Confiança LÁZARO: {state.lazaro_trust}/10 | Logs: {len(state.logs_found)}/{len(LOGS)}"
+            f"STATUS DE ETHAN MULLER\nHP: {state.hp}% | Oxigênio: {state.oxygen}% | Energia: {state.power}% | Casco: {state.hull}%\n"
+            f"Reentrada: {format_time(state.time_remaining)} | Vínculo Jarvana: {state.jarvana_trust}/10 | Logs: {len(state.logs_found)}/{len(LOGS)}"
         ), 5
 
     def _inventory(self, command: ParsedCommand) -> tuple[str, int]:

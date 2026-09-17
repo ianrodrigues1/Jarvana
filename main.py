@@ -1,4 +1,4 @@
-"""Executable entry point for LÁZARO // ÓRBITA ZERO."""
+"""Executable entry point for Jarvana - O Silêncio."""
 
 from __future__ import annotations
 
@@ -25,11 +25,11 @@ def main() -> None:
         print(game.render_hud())
         print()
         print(render_message(message))
-        print(paint("┄" * 84, Ansi.DIM, Ansi.BLUE))
+        print(paint("┄" * 84, Ansi.DIM, Ansi.PURPLE))
         print(paint("  Escreva uma ação em linguagem natural.  •  'ajuda' mostra os comandos.", Ansi.DIM, Ansi.WHITE))
         print()
         try:
-            command = input(paint("  ELIAS", Ansi.BOLD, Ansi.CYAN) + paint("@MIRROR-9", Ansi.MAGENTA) + paint("  › ", Ansi.BOLD, Ansi.WHITE))
+            command = input(paint("  ETHAN", Ansi.BOLD, Ansi.PURPLE) + paint("@LÁZARO", Ansi.CYAN) + paint("  › ", Ansi.BOLD, Ansi.WHITE))
         except (EOFError, KeyboardInterrupt):
             print("\nConexão encerrada.")
             return

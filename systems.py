@@ -12,10 +12,10 @@ from typing import Optional
 AREA_NAMES = {
     "doca": "DOCA DE ACOPLAMENTO",
     "manutencao": "MANUTENÇÃO",
-    "laboratorio": "LABORATÓRIO LÁZARO",
+    "laboratorio": "LABORATÓRIO XENOLÓGICO",
     "alojamentos": "ALOJAMENTOS",
     "ponte": "PONTE DE COMANDO",
-    "nucleo": "NÚCLEO DE LÁZARO",
+    "nucleo": "NÚCLEO XENOLÓGICO",
 }
 
 
@@ -26,8 +26,8 @@ ITEM_NAMES = {
     "kit_vedacao": "kit de vedação",
     "fusivel_reserva": "fusível de reserva",
     "chave_comando": "chave de comando",
-    "neurochave": "neurochave de Elias",
-    "modulo_lazaro": "módulo portátil LÁZARO",
+    "neurochave": "neurochave de Ethan",
+    "modulo_jarvana": "módulo portátil de Jarvana",
 }
 
 
@@ -38,6 +38,7 @@ class Ansi:
     CYAN = "\033[96m"
     BLUE = "\033[94m"
     MAGENTA = "\033[95m"
+    PURPLE = "\033[38;2;92;87;192m"
     GREEN = "\033[92m"
     YELLOW = "\033[93m"
     RED = "\033[91m"
@@ -70,7 +71,7 @@ class GameState:
     hull: int = 76
     time_remaining: int = 4800
     initial_time: int = 4800
-    lazaro_trust: int = 0
+    jarvana_trust: int = 0
     inventory: set[str] = field(default_factory=lambda: {"lanterna", "kit_medico"})
     logs_found: set[str] = field(default_factory=set)
     unlocked_areas: set[str] = field(default_factory=lambda: {"doca"})
@@ -80,18 +81,25 @@ class GameState:
             "oxygen_sealed": False,
             "power_restored": False,
             "hull_patched": False,
-            "lazaro_contact": False,
-            "trusted_lazaro": False,
+            "jarvana_contact": False,
+            "trusted_jarvana": False,
             "agency_orders": True,
             "agency_signal_blocked": False,
             "bridge_scanned": False,
-            "lazaro_transferred": False,
+            "jarvana_secret_revealed": False,
+            "jarvana_conflict_started": False,
+            "humanity_test_active": False,
+            "humanity_test_done": False,
+            "saved_stasis": False,
+            "preserved_data": False,
+            "jarvana_transferred": False,
             "zero_protocol_known": False,
             "zero_protocol_ready": False,
         }
     )
     location: str = "doca"
     turn: int = 0
+    jarvana_seen_lines: set[str] = field(default_factory=set)
     ended: bool = False
     ending: Optional[str] = None
 
@@ -103,8 +111,8 @@ class GameState:
         return True
 
     def change_trust(self, amount: int) -> int:
-        self.lazaro_trust = max(-5, min(10, self.lazaro_trust + amount))
-        return self.lazaro_trust
+        self.jarvana_trust = max(-5, min(10, self.jarvana_trust + amount))
+        return self.jarvana_trust
 
 
 def format_time(seconds: int) -> str:
@@ -142,32 +150,47 @@ def _meter(label: str, value: int, suffix: str = "%") -> str:
 
 
 def connection_percent(state: GameState) -> int:
-    if not state.flags["lazaro_contact"]:
+    if not state.flags["jarvana_contact"]:
         return 0
-    return max(10, min(100, 45 + state.lazaro_trust * 8))
+    return max(10, min(100, 45 + state.jarvana_trust * 8))
 
 
 def render_hud(state: GameState) -> str:
     reentry = round((state.time_remaining / state.initial_time) * 100)
     connection = connection_percent(state)
-    title = "  L Á Z A R O  //  Ó R B I T A   Z E R O"
-    location_prefix = "  MIRROR-9  /  LOCALIZAÇÃO  "
+    title = "  J A R V A N A  —  O   S I L Ê N C I O"
+    location_prefix = "  NAVE: LÁZARO  /  SETOR:  "
     location_name = AREA_NAMES[state.location]
     location_plain = location_prefix + location_name
     location_styled = paint(location_prefix, Ansi.DIM, Ansi.BLUE) + paint(location_name, Ansi.BOLD, Ansi.WHITE)
     lines = [
         paint("╭" + "─" * 82 + "╮", Ansi.CYAN),
-        "│" + paint(title, Ansi.BOLD, Ansi.CYAN) + " " * (82 - len(title)) + "│",
+        "│" + paint(title, Ansi.BOLD, Ansi.PURPLE) + " " * (82 - len(title)) + "│",
         "│" + location_styled + " " * (82 - len(location_plain)) + "│",
-        paint("├" + "─" * 82 + "┤", Ansi.CYAN),
-        _meter("OXYGEN", state.oxygen),
-        _meter("POWER", state.power),
-        _meter("HULL", state.hull),
-        _meter("RE-ENTRY", reentry, f"%  {format_time(state.time_remaining)}"),
-        _meter("LAZARO CONNECTION", connection),
-        paint("╰" + "─" * 82 + "╯", Ansi.CYAN),
+        paint("├" + "─" * 82 + "┤", Ansi.PURPLE),
+        _meter("OXIGÊNIO", state.oxygen),
+        _meter("ENERGIA", state.power),
+        _meter("CASCO", state.hull),
+        _meter("REENTRADA", reentry, f"%  {format_time(state.time_remaining)}"),
+        _meter("JARVANA / CONEXÃO", connection, f"%  VÍNCULO {state.jarvana_trust:+d}"),
+        _jarvana_hud_line(state),
+        paint("╰" + "─" * 82 + "╯", Ansi.PURPLE),
     ]
     return "\n".join(lines)
+
+
+def _jarvana_hud_line(state: GameState) -> str:
+    if state.flags["humanity_test_active"]:
+        text = "  JARVANA // VARIÁVEIS INCOMPLETAS — AGUARDANDO SUA ESCOLHA"
+        return "│" + paint(text, Ansi.BOLD, Ansi.PURPLE) + " " * (82 - len(text)) + "│"
+    if state.flags["jarvana_conflict_started"]:
+        text = "  JARVANA // CANAL ATIVO — RELAÇÃO NÃO CLASSIFICADA"
+        return "│" + paint(text, Ansi.DIM, Ansi.PURPLE) + " " * (82 - len(text)) + "│"
+    if state.flags["jarvana_contact"]:
+        text = "  JARVANA // OBSERVAÇÃO PASSIVA"
+        return "│" + paint(text, Ansi.DIM, Ansi.PURPLE) + " " * (82 - len(text)) + "│"
+    text = "  CANAL XENOLÓGICO // SEM SINAL"
+    return "│" + text + " " * (82 - len(text)) + "│"
 
 
 def render_message(message: str) -> str:
@@ -182,9 +205,11 @@ def render_message(message: str) -> str:
         elif stripped.startswith("FALHA") or stripped.startswith("SISTEMAS") or stripped.startswith("RUPTURA"):
             rendered.append(paint(line, Ansi.BOLD, Ansi.RED))
         elif stripped.startswith("[LOG"):
-            rendered.append(paint(line, Ansi.BOLD, Ansi.MAGENTA))
+            rendered.append(paint(line, Ansi.BOLD, Ansi.PURPLE))
+        elif stripped.startswith("JARVANA //"):
+            rendered.append(paint(line, Ansi.BOLD, Ansi.PURPLE))
         elif stripped.startswith("FINAL"):
-            rendered.append(paint(line, Ansi.BOLD, Ansi.MAGENTA))
+            rendered.append(paint(line, Ansi.BOLD, Ansi.PURPLE))
         elif stripped.startswith("Rota liberada:"):
             rendered.append(paint(line, Ansi.GREEN))
         else:
@@ -248,6 +273,6 @@ def advance_systems(state: GameState, seconds: int) -> list[str]:
     elif state.hp <= 0:
         state.ended = True
         state.ending = "Falência dos sistemas vitais"
-        notices.append("SISTEMAS VITAIS ENCERRADOS: Elias não resistiu aos danos da estação.")
+        notices.append("SISTEMAS VITAIS ENCERRADOS: Ethan não resistiu aos danos da nave.")
 
     return notices
