@@ -6,7 +6,7 @@ import os
 import sys
 
 from game import Game
-from systems import Ansi, enable_terminal_colors, paint, render_message
+from systems import Ansi, enable_terminal_colors, paint, render_actions, render_message
 
 
 def clear_terminal() -> None:
@@ -25,8 +25,9 @@ def main() -> None:
         print(game.render_hud())
         print()
         print(render_message(message))
-        print(paint("┄" * 84, Ansi.DIM, Ansi.PURPLE))
-        print(paint("  Escreva uma ação em linguagem natural.  •  'ajuda' mostra os comandos.", Ansi.DIM, Ansi.WHITE))
+        print()
+        print(render_actions(game.available_actions()))
+        print(paint("  [INFO] Atalhos e comandos livres funcionam da mesma forma. 'ajuda' detalha os comandos.", Ansi.DIM, Ansi.WHITE))
         print()
         try:
             command = input(paint("  ETHAN", Ansi.BOLD, Ansi.PURPLE) + paint("@LÁZARO", Ansi.CYAN) + paint("  › ", Ansi.BOLD, Ansi.WHITE))

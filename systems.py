@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from math import ceil
 import os
 import sys
-from typing import Optional
+from typing import Optional, Sequence
 
 
 AREA_NAMES = {
@@ -45,6 +45,16 @@ class Ansi:
     WHITE = "\033[97m"
 
 
+@dataclass(frozen=True)
+class ContextAction:
+    """A visible contextual action and the canonical command it executes."""
+
+    key: str
+    label: str
+    command: str
+    narrative_choice: bool = False
+
+
 def enable_terminal_colors() -> None:
     """Enable ANSI output on supported Windows terminals without dependencies."""
     if os.name == "nt":
@@ -74,6 +84,7 @@ class GameState:
     jarvana_trust: int = 0
     inventory: set[str] = field(default_factory=lambda: {"lanterna", "kit_medico"})
     logs_found: set[str] = field(default_factory=set)
+    logs_read: set[str] = field(default_factory=set)
     unlocked_areas: set[str] = field(default_factory=lambda: {"doca"})
     flags: dict[str, bool] = field(
         default_factory=lambda: {
@@ -149,6 +160,13 @@ def _meter(label: str, value: int, suffix: str = "%") -> str:
     return f"│{styled_content}{' ' * max(0, 82 - len(raw_content))}│"
 
 
+def _value_line(label: str, value: str, style: str = Ansi.WHITE) -> str:
+    label_plain = label.ljust(20)
+    plain = f"  {label_plain} {value}"
+    styled = f"  {paint(label_plain, Ansi.BOLD, Ansi.CYAN)} {paint(value, Ansi.BOLD, style)}"
+    return f"│{styled}{' ' * max(0, 82 - len(plain))}│"
+
+
 def connection_percent(state: GameState) -> int:
     if not state.flags["jarvana_contact"]:
         return 0
@@ -156,23 +174,23 @@ def connection_percent(state: GameState) -> int:
 
 
 def render_hud(state: GameState) -> str:
-    reentry = round((state.time_remaining / state.initial_time) * 100)
     connection = connection_percent(state)
     title = "  J A R V A N A  —  O   S I L Ê N C I O"
-    location_prefix = "  NAVE: LÁZARO  /  SETOR:  "
-    location_name = AREA_NAMES[state.location]
-    location_plain = location_prefix + location_name
-    location_styled = paint(location_prefix, Ansi.DIM, Ansi.BLUE) + paint(location_name, Ansi.BOLD, Ansi.WHITE)
+    ship = "  NAVE: LÁZARO"
+    location = f"  LOCAL: {AREA_NAMES[state.location]}"
+    connection_label = "SEM SINAL" if not state.flags["jarvana_contact"] else f"NÍVEL {state.jarvana_trust:+d}  ({connection}%)"
     lines = [
         paint("╭" + "─" * 82 + "╮", Ansi.CYAN),
         "│" + paint(title, Ansi.BOLD, Ansi.PURPLE) + " " * (82 - len(title)) + "│",
-        "│" + location_styled + " " * (82 - len(location_plain)) + "│",
+        "│" + paint(ship, Ansi.DIM, Ansi.BLUE) + " " * (82 - len(ship)) + "│",
         paint("├" + "─" * 82 + "┤", Ansi.PURPLE),
         _meter("OXIGÊNIO", state.oxygen),
         _meter("ENERGIA", state.power),
         _meter("CASCO", state.hull),
-        _meter("REENTRADA", reentry, f"%  {format_time(state.time_remaining)}"),
-        _meter("JARVANA / CONEXÃO", connection, f"%  VÍNCULO {state.jarvana_trust:+d}"),
+        _value_line("REENTRADA", format_time(state.time_remaining), Ansi.YELLOW),
+        _value_line("CONEXÃO JARVANA", connection_label, Ansi.PURPLE),
+        paint("├" + "─" * 82 + "┤", Ansi.PURPLE),
+        "│" + paint(location, Ansi.BOLD, Ansi.WHITE) + " " * (82 - len(location)) + "│",
         _jarvana_hud_line(state),
         paint("╰" + "─" * 82 + "╯", Ansi.PURPLE),
     ]
@@ -215,6 +233,33 @@ def render_message(message: str) -> str:
         else:
             rendered.append(line)
     return "\n".join(rendered)
+
+
+def _action_cell(action: ContextAction, width: int = 40) -> str:
+    plain = f"[{action.key}] {action.label}"
+    key = paint(f"[{action.key}]", Ansi.BOLD, Ansi.PURPLE if not action.narrative_choice else Ansi.YELLOW)
+    label = paint(f" {action.label}", Ansi.WHITE)
+    return key + label + " " * max(1, width - len(plain))
+
+
+def render_actions(actions: Sequence[ContextAction]) -> str:
+    """Render contextual shortcuts without turning exploration into a menu."""
+    if not actions:
+        return ""
+    is_decision = any(action.narrative_choice for action in actions)
+    heading = "DECISÃO NARRATIVA" if is_decision else "AÇÕES DISPONÍVEIS"
+    lines = [paint("┄" * 84, Ansi.DIM, Ansi.PURPLE), paint(f"  {heading}", Ansi.BOLD, Ansi.PURPLE)]
+    if is_decision:
+        lines.append(paint("  [INFO] Escolha uma opção ou escreva um comando livre.", Ansi.DIM, Ansi.CYAN))
+        for action in actions:
+            lines.append("  " + _action_cell(action, width=76))
+    else:
+        for index in range(0, len(actions), 2):
+            left = _action_cell(actions[index])
+            right = _action_cell(actions[index + 1]) if index + 1 < len(actions) else ""
+            lines.append("  " + left + right)
+    lines.append(paint("┄" * 84, Ansi.DIM, Ansi.PURPLE))
+    return "\n".join(lines)
 
 
 def advance_systems(state: GameState, seconds: int) -> list[str]:

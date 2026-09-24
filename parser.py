@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import re
+from typing import Mapping
 import unicodedata
 
 
@@ -59,10 +60,16 @@ def _target_from(words: list[str]) -> str:
     return TARGET_ALIASES.get(target, target)
 
 
-def parse_command(raw: str) -> ParsedCommand:
+def parse_command(raw: str, shortcuts: Mapping[str, str] | None = None) -> ParsedCommand:
+    """Parse a free-text command or expand an active contextual shortcut."""
     cleaned = normalize(raw)
     if not cleaned:
         return ParsedCommand("", "", raw)
+    if shortcuts:
+        expanded = shortcuts.get(cleaned)
+        if expanded:
+            parsed = parse_command(expanded)
+            return ParsedCommand(parsed.verb, parsed.target, raw)
     words = cleaned.split()
     first = words.pop(0)
     verb = VERB_ALIASES.get(first, "unknown")

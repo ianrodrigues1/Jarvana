@@ -21,13 +21,21 @@ O HUD está totalmente em português e apresenta, a cada turno, a nave, o setor 
 
 Quando Jarvana estabelece contato, ela também aparece discretamente no HUD. Durante a desavença obrigatória, esse campo muda para refletir que a interface está sendo observada e que uma escolha está pendente.
 
+## Ações contextuais e atalhos
+
+Abaixo da narrativa, o jogo exibe apenas ações que fazem sentido no estado atual. A lista muda ao explorar um setor, encontrar logs, reparar sistemas, desbloquear rotas, estabelecer contato com Jarvana ou avançar eventos narrativos. Ela mostra possibilidades sem revelar soluções.
+
+Cada item tem um atalho contextual que executa o mesmo comando canônico aceito pelo parser. Por exemplo, `[E] Explorar` equivale a `explorar`, `[X] Examinar terminal` equivale a `examinar terminal`, `[C] Conversar com Jarvana` equivale a `interagir jarvana`, e `[M] Mover` mostra as rotas que podem ser acessadas. `I` abre o inventário e `S` mostra o status quando essas ações estão disponíveis.
+
+Comandos completos continuam funcionando sempre. Os atalhos não são um menu fixo: uma mesma tecla pode representar uma ação diferente em outro contexto. Em decisões narrativas reais, o jogo pode mostrar escolhas numeradas, como `[1] Salvar tripulante` e `[2] Preservar dados`; os comandos por extenso permanecem válidos nesses momentos.
+
 ## Estrutura
 
 | Arquivo | Responsabilidade |
 | --- | --- |
-| `main.py` | Loop do terminal, tema de cores e prompt de Ethan. |
-| `game.py` | Progressão, comandos, desavença, escolhas e finais. |
-| `parser.py` | Parser sem acentos, sinônimos e alvos em linguagem natural. |
+| `main.py` | Loop do terminal, tema de cores, HUD, narrativa e ações visíveis. |
+| `game.py` | Progressão, ações contextuais, comandos, desavença, escolhas e finais. |
+| `parser.py` | Parser sem acentos, sinônimos, alvos em linguagem natural e expansão de atalhos. |
 | `story.py` | Cenários, 12 logs, finais e conjunto de falas de Jarvana. |
 | `systems.py` | Estado global, HUD, recursos e relógio simulado. |
 
@@ -56,6 +64,8 @@ status
 inventario
 ajuda
 ```
+
+Os atalhos exibidos na tela são contextuais. Portanto, consulte o painel **AÇÕES DISPONÍVEIS** da partida em vez de decorar uma lista fixa.
 
 ## Jarvana e o teste de humanidade
 

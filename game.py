@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from parser import ParsedCommand, parse_command
 from story import AREAS, ENDINGS, HELP_TEXT, INTRO, JARVANA_LINES, LOGS, SECRET_LOGS
-from systems import AREA_NAMES, ITEM_NAMES, GameState, advance_systems, format_time, render_hud
+from systems import AREA_NAMES, ITEM_NAMES, ContextAction, GameState, advance_systems, format_time, render_hud
 
 
 class Game:
@@ -18,6 +18,100 @@ class Game:
 
     def render_hud(self) -> str:
         return render_hud(self.state)
+
+    def _available_destinations(self) -> list[str]:
+        """Return only routes that the current state can actually traverse."""
+        destinations = []
+        for area in sorted(self.state.unlocked_areas):
+            if area == self.state.location:
+                continue
+            if area == "ponte" and not self.state.flags["humanity_test_done"]:
+                continue
+            destinations.append(area)
+        return destinations
+
+    def _routes_text(self) -> str:
+        destinations = self._available_destinations()
+        if not destinations:
+            return "Não há outra rota liberada a partir deste setor."
+        commands = "\n".join(f"  • acessar {area}" for area in destinations)
+        return f"ROTAS DISPONÍVEIS\n{commands}"
+
+    def available_actions(self) -> list[ContextAction]:
+        """Build the live shortcut layer from the same flags used by the story."""
+        state = self.state
+        if state.ended:
+            return []
+
+        def action(key: str, label: str, command: str, narrative_choice: bool = False) -> ContextAction:
+            return ContextAction(key, label, command, narrative_choice)
+
+        if state.flags["humanity_test_active"]:
+            return [
+                action("1", "Salvar tripulante", "salvar tripulante", True),
+                action("2", "Preservar dados", "preservar dados", True),
+                action("I", "Inventário", "inventario"),
+                action("S", "Status", "status"),
+            ]
+
+        actions = [action("E", "Explorar", "explorar")]
+        location = state.location
+        if location == "doca" and "02" not in state.logs_found:
+            actions.append(action("X", "Examinar terminal", "examinar terminal"))
+        elif location == "manutencao":
+            if "04" not in state.logs_found:
+                actions.append(action("X", "Examinar vazamento", "examinar vazamento"))
+            if "kit_vedacao" in state.inventory and not state.flags["oxygen_sealed"]:
+                actions.append(action("O", "Reparar oxigênio", "reparar oxigenio"))
+            if "fusivel_reserva" in state.inventory and not state.flags["power_restored"]:
+                actions.append(action("R", "Reparar energia", "reparar energia"))
+            if "kit_vedacao" in state.inventory and not state.flags["hull_patched"]:
+                actions.append(action("H", "Reparar casco", "reparar casco"))
+        elif location == "laboratorio":
+            if not state.flags["jarvana_contact"]:
+                actions.append(action("X", "Examinar terminal", "examinar terminal"))
+            actions.append(action("C", "Conversar com Jarvana", "interagir jarvana"))
+            if state.flags["jarvana_contact"] and not state.flags["trusted_jarvana"]:
+                actions.append(action("T", "Confiar em Jarvana", "confiar"))
+                actions.append(action("G", "Ignorar Jarvana", "ignorar"))
+        elif location == "alojamentos":
+            if "09" not in state.logs_found:
+                actions.append(action("X", "Examinar armário", "examinar armario"))
+            elif "10" not in state.logs_found:
+                actions.append(action("X", "Examinar arquivo", "examinar arquivo"))
+            if state.flags["jarvana_contact"]:
+                actions.append(action("C", "Conversar com Jarvana", "interagir jarvana"))
+            if state.flags["jarvana_secret_revealed"] and not state.flags["humanity_test_done"]:
+                actions.append(action("Q", "Confrontar Jarvana", "confrontar jarvana"))
+        elif location == "ponte":
+            if not state.flags["bridge_scanned"]:
+                actions.append(action("X", "Examinar terminal", "examinar terminal"))
+            else:
+                actions.append(action("R", "Rastrear transmissão", "rastrear transmissao"))
+                if not state.flags["agency_signal_blocked"]:
+                    actions.append(action("B", "Bloquear transmissão", "bloquear transmissao"))
+        elif location == "nucleo":
+            actions.append(action("C", "Conversar com Jarvana", "interagir jarvana"))
+            if SECRET_LOGS.issubset(state.logs_found) and state.jarvana_trust >= 5 and not state.flags["zero_protocol_ready"]:
+                actions.append(action("R", "Rastrear Protocolo Zero", "rastrear protocolo zero"))
+            if state.flags["zero_protocol_ready"]:
+                actions.append(action("A", "Ativar Protocolo Zero", "ativar protocolo zero"))
+            if state.flags["agency_signal_blocked"] and state.jarvana_trust >= 5 and not state.flags["jarvana_transferred"]:
+                actions.append(action("T", "Transferir Jarvana", "transferir jarvana"))
+            if state.flags["jarvana_transferred"]:
+                actions.append(action("F", "Escapar", "escapar"))
+            actions.append(action("D", "Destruir núcleo", "destruir nucleo"))
+
+        unread_logs = sorted(state.logs_found - state.logs_read, reverse=True)
+        if unread_logs:
+            actions.append(action("L", f"Ler log {unread_logs[0]}", f"ler log {unread_logs[0]}"))
+        if self._available_destinations():
+            actions.append(action("M", "Mover", "mover"))
+        actions.extend([action("I", "Inventário", "inventario"), action("S", "Status", "status")])
+        return actions
+
+    def shortcut_commands(self) -> dict[str, str]:
+        return {action.key.lower(): action.command for action in self.available_actions()}
 
     def _area_text(self) -> str:
         area = AREAS[self.state.location]
@@ -85,7 +179,7 @@ class Game:
         return f"\n\nJARVANA // {line}"
 
     def handle_command(self, raw: str) -> str:
-        command = parse_command(raw)
+        command = parse_command(raw, self.shortcut_commands())
         if command.verb == "":
             return "Comando vazio. Digite 'ajuda' para ver exemplos."
         if command.verb == "unknown":
@@ -171,6 +265,8 @@ class Game:
 
     def _access(self, command: ParsedCommand) -> tuple[str, int]:
         target = command.target
+        if not target:
+            return self._routes_text(), 5
         if target not in AREAS:
             return "Não existe uma rota reconhecida com esse nome. Tente manutenção, laboratório, alojamentos, ponte ou núcleo.", 8
         if target == "ponte" and not self.state.flags["humanity_test_done"]:
@@ -190,6 +286,7 @@ class Game:
             return "Esse identificador de log não existe na LÁZARO.", 6
         if log_id not in self.state.logs_found:
             return "Você ainda não encontrou esse log. Explore e examine a nave.", 8
+        self.state.logs_read.add(log_id)
         title, body = LOGS[log_id]
         return f"[LOG {log_id}: {title}]\n{body}", 12
 
