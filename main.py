@@ -27,7 +27,7 @@ def main() -> None:
         print(render_message(message))
         print()
         print(render_actions(game.available_actions()))
-        print(paint("  [INFO] Atalhos e comandos livres funcionam da mesma forma. 'ajuda' detalha os comandos.", Ansi.DIM, Ansi.WHITE))
+        print(paint("  [INFO] Use o atalho ou escreva o comando exibido por completo. 'ajuda' fica como referência extra.", Ansi.DIM, Ansi.WHITE))
         print()
         try:
             command = input(paint("  ETHAN", Ansi.BOLD, Ansi.PURPLE) + paint("@LÁZARO", Ansi.CYAN) + paint("  › ", Ansi.BOLD, Ansi.WHITE))

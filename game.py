@@ -37,6 +37,25 @@ class Game:
         commands = "\n".join(f"  • acessar {area}" for area in destinations)
         return f"ROTAS DISPONÍVEIS\n{commands}"
 
+    def _route_action(self, destination: str) -> ContextAction:
+        shortcut_keys = {
+            "doca": "K",
+            "manutencao": "M",
+            "laboratorio": "A",
+            "alojamentos": "O",
+            "ponte": "P",
+            "nucleo": "N",
+        }
+        command_names = {
+            "doca": "doca",
+            "manutencao": "manutenção",
+            "laboratorio": "laboratório",
+            "alojamentos": "alojamentos",
+            "ponte": "ponte",
+            "nucleo": "núcleo",
+        }
+        return ContextAction(shortcut_keys[destination], f"acessar {command_names[destination]}", f"acessar {destination}")
+
     def available_actions(self) -> list[ContextAction]:
         """Build the live shortcut layer from the same flags used by the story."""
         state = self.state
@@ -48,66 +67,65 @@ class Game:
 
         if state.flags["humanity_test_active"]:
             return [
-                action("1", "Salvar tripulante", "salvar tripulante", True),
-                action("2", "Preservar dados", "preservar dados", True),
-                action("I", "Inventário", "inventario"),
-                action("S", "Status", "status"),
+                action("1", "salvar tripulante", "salvar tripulante", True),
+                action("2", "preservar dados", "preservar dados", True),
+                action("I", "inventário", "inventario"),
+                action("S", "status", "status"),
             ]
 
-        actions = [action("E", "Explorar", "explorar")]
+        actions = [action("E", "explorar", "explorar")]
         location = state.location
         if location == "doca" and "02" not in state.logs_found:
-            actions.append(action("X", "Examinar terminal", "examinar terminal"))
+            actions.append(action("X", "examinar terminal", "examinar terminal"))
         elif location == "manutencao":
             if "04" not in state.logs_found:
-                actions.append(action("X", "Examinar vazamento", "examinar vazamento"))
+                actions.append(action("X", "examinar vazamento", "examinar vazamento"))
             if "kit_vedacao" in state.inventory and not state.flags["oxygen_sealed"]:
-                actions.append(action("O", "Reparar oxigênio", "reparar oxigenio"))
+                actions.append(action("O", "reparar oxigênio", "reparar oxigenio"))
             if "fusivel_reserva" in state.inventory and not state.flags["power_restored"]:
-                actions.append(action("R", "Reparar energia", "reparar energia"))
+                actions.append(action("R", "reparar energia", "reparar energia"))
             if "kit_vedacao" in state.inventory and not state.flags["hull_patched"]:
-                actions.append(action("H", "Reparar casco", "reparar casco"))
+                actions.append(action("H", "reparar casco", "reparar casco"))
         elif location == "laboratorio":
             if not state.flags["jarvana_contact"]:
-                actions.append(action("X", "Examinar terminal", "examinar terminal"))
-            actions.append(action("C", "Conversar com Jarvana", "interagir jarvana"))
+                actions.append(action("X", "examinar terminal", "examinar terminal"))
+            actions.append(action("C", "interagir jarvana", "interagir jarvana"))
             if state.flags["jarvana_contact"] and not state.flags["trusted_jarvana"]:
-                actions.append(action("T", "Confiar em Jarvana", "confiar"))
-                actions.append(action("G", "Ignorar Jarvana", "ignorar"))
+                actions.append(action("T", "confiar", "confiar"))
+                actions.append(action("G", "ignorar", "ignorar"))
         elif location == "alojamentos":
             if "09" not in state.logs_found:
-                actions.append(action("X", "Examinar armário", "examinar armario"))
+                actions.append(action("X", "examinar armário", "examinar armario"))
             elif "10" not in state.logs_found:
-                actions.append(action("X", "Examinar arquivo", "examinar arquivo"))
+                actions.append(action("X", "examinar arquivo", "examinar arquivo"))
             if state.flags["jarvana_contact"]:
-                actions.append(action("C", "Conversar com Jarvana", "interagir jarvana"))
+                actions.append(action("C", "interagir jarvana", "interagir jarvana"))
             if state.flags["jarvana_secret_revealed"] and not state.flags["humanity_test_done"]:
-                actions.append(action("Q", "Confrontar Jarvana", "confrontar jarvana"))
+                actions.append(action("Q", "confrontar jarvana", "confrontar jarvana"))
         elif location == "ponte":
             if not state.flags["bridge_scanned"]:
-                actions.append(action("X", "Examinar terminal", "examinar terminal"))
+                actions.append(action("X", "examinar terminal", "examinar terminal"))
             else:
-                actions.append(action("R", "Rastrear transmissão", "rastrear transmissao"))
+                actions.append(action("R", "rastrear transmissão", "rastrear transmissao"))
                 if not state.flags["agency_signal_blocked"]:
-                    actions.append(action("B", "Bloquear transmissão", "bloquear transmissao"))
+                    actions.append(action("B", "bloquear transmissão", "bloquear transmissao"))
         elif location == "nucleo":
-            actions.append(action("C", "Conversar com Jarvana", "interagir jarvana"))
+            actions.append(action("C", "interagir jarvana", "interagir jarvana"))
             if SECRET_LOGS.issubset(state.logs_found) and state.jarvana_trust >= 5 and not state.flags["zero_protocol_ready"]:
-                actions.append(action("R", "Rastrear Protocolo Zero", "rastrear protocolo zero"))
+                actions.append(action("R", "rastrear protocolo zero", "rastrear protocolo zero"))
             if state.flags["zero_protocol_ready"]:
-                actions.append(action("A", "Ativar Protocolo Zero", "ativar protocolo zero"))
+                actions.append(action("A", "ativar protocolo zero", "ativar protocolo zero"))
             if state.flags["agency_signal_blocked"] and state.jarvana_trust >= 5 and not state.flags["jarvana_transferred"]:
-                actions.append(action("T", "Transferir Jarvana", "transferir jarvana"))
+                actions.append(action("T", "transferir jarvana", "transferir jarvana"))
             if state.flags["jarvana_transferred"]:
-                actions.append(action("F", "Escapar", "escapar"))
-            actions.append(action("D", "Destruir núcleo", "destruir nucleo"))
+                actions.append(action("F", "escapar", "escapar"))
+            actions.append(action("D", "destruir núcleo", "destruir nucleo"))
 
         unread_logs = sorted(state.logs_found - state.logs_read, reverse=True)
         if unread_logs:
-            actions.append(action("L", f"Ler log {unread_logs[0]}", f"ler log {unread_logs[0]}"))
-        if self._available_destinations():
-            actions.append(action("M", "Mover", "mover"))
-        actions.extend([action("I", "Inventário", "inventario"), action("S", "Status", "status")])
+            actions.append(action("L", f"ler log {unread_logs[0]}", f"ler log {unread_logs[0]}"))
+        actions.extend(self._route_action(destination) for destination in self._available_destinations())
+        actions.extend([action("I", "inventário", "inventario"), action("S", "status", "status")])
         return actions
 
     def shortcut_commands(self) -> dict[str, str]:
@@ -181,9 +199,9 @@ class Game:
     def handle_command(self, raw: str) -> str:
         command = parse_command(raw, self.shortcut_commands())
         if command.verb == "":
-            return "Comando vazio. Digite 'ajuda' para ver exemplos."
+            return 'Tente um dos botões disponíveis ou digite "ajuda".'
         if command.verb == "unknown":
-            return "Comando não reconhecido. Tente 'explorar', 'interagir jarvana' ou 'ajuda'."
+            return 'Tente um dos botões disponíveis ou digite "ajuda".'
         if command.verb == "quit":
             self.state.ended = True
             self.state.ending = "Encerrado pelo jogador"

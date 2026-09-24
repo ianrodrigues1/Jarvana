@@ -1,4 +1,4 @@
-# JARVANA // O SILENCIO
+# Jarvana - O Silêncio
 
 Uma aventura de ficção interativa em Python 3, sem dependências externas. Ethan Muller acorda na nave de pesquisa **LÁZARO** enquanto a reentrada se aproxima. A presença que divide a nave com ele se chama **Jarvana**: uma entidade alienígena calma, precisa, estranhamente curiosa e impossível de classificar com segurança.
 
@@ -25,9 +25,9 @@ Quando Jarvana estabelece contato, ela também aparece discretamente no HUD. Dur
 
 Abaixo da narrativa, o jogo exibe apenas ações que fazem sentido no estado atual. A lista muda ao explorar um setor, encontrar logs, reparar sistemas, desbloquear rotas, estabelecer contato com Jarvana ou avançar eventos narrativos. Ela mostra possibilidades sem revelar soluções.
 
-Cada item tem um atalho contextual que executa o mesmo comando canônico aceito pelo parser. Por exemplo, `[E] Explorar` equivale a `explorar`, `[X] Examinar terminal` equivale a `examinar terminal`, `[C] Conversar com Jarvana` equivale a `interagir jarvana`, e `[M] Mover` mostra as rotas que podem ser acessadas. `I` abre o inventário e `S` mostra o status quando essas ações estão disponíveis.
+Cada item mostra o comando completo que Ethan pode executar e tem um atalho contextual que aciona exatamente esse comando. Por exemplo, `[E] explorar`, `[X] examinar terminal`, `[C] interagir jarvana`, `[M] acessar manutenção`, `[L] ler log 04`, `[I] inventário` e `[S] status`. Quando mais de uma rota estiver liberada, cada destino recebe seu próprio atalho e aparece como um comando completo.
 
-Comandos completos continuam funcionando sempre. Os atalhos não são um menu fixo: uma mesma tecla pode representar uma ação diferente em outro contexto. Em decisões narrativas reais, o jogo pode mostrar escolhas numeradas, como `[1] Salvar tripulante` e `[2] Preservar dados`; os comandos por extenso permanecem válidos nesses momentos.
+Comandos completos continuam funcionando sempre. Os atalhos não são um menu fixo: uma mesma tecla pode representar uma ação diferente em outro contexto. Em decisões narrativas reais, o jogo pode mostrar escolhas numeradas, como `[1] salvar tripulante` e `[2] preservar dados`; os comandos por extenso permanecem válidos nesses momentos.
 
 ## Estrutura
 
